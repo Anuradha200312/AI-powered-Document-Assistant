@@ -505,6 +505,13 @@ def render_sidebar():
                 st.session_state.chat_history = []
                 st.rerun()
 
+            if st.button("🔄 New Chat", use_container_width=True, type="primary"):
+                st.session_state.chat_history = []
+                st.session_state.chunks = []
+                st.session_state.processed_filename = None
+                st.session_state.chunks_count = 0
+                st.rerun()
+
             # Download chat history
             if st.session_state.chat_history:
                 chat_text = f"# Chat — {st.session_state.processed_filename}\n\n"
