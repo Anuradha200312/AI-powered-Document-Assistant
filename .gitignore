@@ -1,0 +1,49 @@
+# ── Environment & Secrets ──────────────────────────────────────────
+.env
+*.env
+.streamlit/secrets.toml
+
+# ── ChromaDB (vector store data — regenerated at runtime) ──────────
+chroma_db/
+
+# ── Python ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Uploaded files ─────────────────────────────────────────────────
+static/uploads/
+uploads/
+*.pdf
+
+# ── Redis dump ─────────────────────────────────────────────────────
+dump.rdb
+
+# ── Generated output files ─────────────────────────────────────────
+invoice_data.json
+
+# ── OS files ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE / Editor ───────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Virtual environments ───────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/

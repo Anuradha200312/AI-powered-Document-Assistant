@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Q&A System</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">📄 PDF Q&A System</h1>
+
+        <div class="upload-section">
+            <form id="uploadForm" class="upload-form">
+                <input type="file" id="pdfFile" name="file" class="file-input">
+                <button type="submit" class="upload-btn">📤 Upload</button>
+            </form>
+            <div class="progress-container">
+                <progress id="uploadProgress" value="0" max="100" class="progress-bar"></progress>
+                <p class="loading" id="uploadStatus">Uploading...</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">📂 Uploaded PDFs</h2>
+        <ul id="pdfList" class="pdf-list">
+            {% for file in pdf_files %}
+            <li class="pdf-item">
+                <span class="pdf-name">{{ file }}</span>
+                <button class="delete-btn" onclick="deletePDF('{{ file }}')">🗑 Delete</button>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <div class="question-section">
+            <h2 class="section-title">💬 Ask a Question</h2>
+            <div class="question-box">
+                <input type="text" id="questionInput" class="question-input" placeholder="Type your question...">
+                <button onclick="askQuestion()" class="ask-btn">❓ Ask</button>
+            </div>
+            <p class="answer-box" id="answer"></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("uploadForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            let fileInput = document.getElementById("pdfFile");
+            if (fileInput.files.length === 0) {
+                alert("Please select a PDF file to upload.");
+                return;
+            }
+
+            let formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            let progressContainer = document.querySelector(".progress-container");
+            let progressBar = document.getElementById("uploadProgress");
+            let statusText = document.getElementById("uploadStatus");
+
+            // Show progress bar
+            progressContainer.style.display = "block";
+            progressBar.value = 0;
+            statusText.innerText = "Uploading... 0%";
+
+            let xhr = new XMLHttpRequest();
+            xhr.open("POST", "/upload", true);
+
+            xhr.upload.onprogress = function(event) {
+                if (event.lengthComputable) {
+                    let percentComplete = Math.round((event.loaded / event.total) * 100);
+                    progressBar.value = percentComplete;
+                    statusText.innerText = `Uploading... ${percentComplete}%`;
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    let response = JSON.parse(xhr.responseText);
+                    alert(response.message);
+                    progressBar.value = 100;
+                    statusText.innerText = "Upload Complete!";
+
+                    setTimeout(() => {
+                        progressContainer.style.display = "none"; // Hide progress bar
+                        location.reload();
+                    }, 1000);
+                } else {
+                    alert("Error uploading file. Please try again.");
+                }
+            };
+
+            xhr.onerror = function() {
+                alert("Upload failed. Please check your connection.");
+                progressContainer.style.display = "none"; // Hide progress bar on error
+            };
+
+            xhr.send(formData);
+        });
+
+
+
+        function deletePDF(filename) {
+            fetch("/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ filename: filename }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            })
+            .catch(error => console.error("Error deleting file:", error));
+        }
+
+        function askQuestion() {
+            let question = document.getElementById("questionInput").value;
+            fetch("/ask", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question: question }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("answer").innerText = "Answer: " + data.answer;
+            })
+            .catch(error => console.error("Error asking question:", error));
+        }
+    </script>
+</body>
+</html>
