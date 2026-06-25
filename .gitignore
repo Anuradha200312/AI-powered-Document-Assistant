@@ -31,6 +31,10 @@ dump.rdb
 # ── Generated output files ─────────────────────────────────────────
 invoice_data.json
 
+# ── API Test / Diagnostic files (may contain keys) ─────────────────
+api_test.ipynb
+api_test.py
+
 # ── OS files ───────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

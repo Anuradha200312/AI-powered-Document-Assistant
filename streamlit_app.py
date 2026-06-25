@@ -1,5 +1,7 @@
 import os
 import uuid
+from dotenv import load_dotenv
+load_dotenv()  # Load .env before anything else
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -286,18 +288,24 @@ html, body, [class*="css"] {
 # API Key
 # ─────────────────────────────────────────────────────────────────
 def get_api_key() -> str:
-    try:
-        return st.secrets["GROQ_API_KEY"]
-    except (KeyError, FileNotFoundError):
-        key = os.getenv("GROQ_API_KEY", "")
-        if not key:
-            st.error(
-                "⚠️ **Groq API key not found.**\n\n"
-                "Add `GROQ_API_KEY` to `.streamlit/secrets.toml` (local) "
-                "or Streamlit Cloud Secrets Manager."
-            )
-            st.stop()
+    # 1. First check .env file (loaded by load_dotenv at top of file)
+    key = os.getenv("GROQ_API_KEY", "")
+    if key:
         return key
+    # 2. Fallback: Streamlit secrets.toml
+    try:
+        key = st.secrets["GROQ_API_KEY"]
+        if key:
+            return key
+    except (KeyError, FileNotFoundError):
+        pass
+    # 3. No key found anywhere
+    st.error(
+        "⚠️ **Groq API key not found.**\n\n"
+        "Add `GROQ_API_KEY` to your `.env` file:\n"
+        "```\nGROQ_API_KEY=\"your-key-here\"\n```"
+    )
+    st.stop()
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -372,11 +380,12 @@ def process_pdf(uploaded_file) -> tuple[bool, str | int]:
 # ─────────────────────────────────────────────────────────────────
 # Answer Generation
 # ─────────────────────────────────────────────────────────────────
-SIMILARITY_THRESHOLD = 1.5
+SIMILARITY_THRESHOLD = 2.0
 MAX_HISTORY_TURNS = 6
 
 
-def get_answer(question: str) -> str:
+def get_answer(question: str) -> dict:
+    """Returns dict with 'answer' (str) and 'sources' (list of str chunks)."""
     results = st.session_state.collection.query(
         query_texts=[question],
         n_results=3,
@@ -387,10 +396,13 @@ def get_answer(question: str) -> str:
     distances = results["distances"][0]
 
     if not docs or (distances and distances[0] > SIMILARITY_THRESHOLD):
-        return (
-            "I couldn't find relevant information about that in the uploaded document. "
-            "Please try rephrasing, or ask about something covered in the document."
-        )
+        return {
+            "answer": (
+                "I couldn't find relevant information about that in the uploaded document. "
+                "Please try rephrasing, or ask about something covered in the document."
+            ),
+            "sources": [],
+        }
 
     context = "\n\n---\n\n".join(docs)
 
@@ -412,12 +424,15 @@ def get_answer(question: str) -> str:
     ]
 
     response = get_groq_client().chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages=messages,
         temperature=0.3,
         max_tokens=512,
     )
-    return response.choices[0].message.content.strip()
+    return {
+        "answer": response.choices[0].message.content.strip(),
+        "sources": docs,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -472,6 +487,20 @@ def render_sidebar():
             if st.button("🗑️ Clear Chat", use_container_width=True, type="secondary"):
                 st.session_state.chat_history = []
                 st.rerun()
+
+            # Download chat history
+            if st.session_state.chat_history:
+                chat_text = f"# Chat — {st.session_state.processed_filename}\n\n"
+                for msg in st.session_state.chat_history:
+                    role = "You" if msg["role"] == "user" else "DocMind AI"
+                    chat_text += f"**{role}:** {msg['content']}\n\n"
+                st.download_button(
+                    label="⬇️ Download Chat",
+                    data=chat_text.encode("utf-8"),
+                    file_name="chat_history.txt",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
 
         # Tips
         st.markdown('<div class="section-label">💡 Tips</div>', unsafe_allow_html=True)
@@ -572,8 +601,20 @@ def render_chat():
 
         with st.chat_message("assistant"):
             with st.spinner("Searching document…"):
-                answer = get_answer(question)
+                result = get_answer(question)
+            answer = result["answer"]
+            sources = result["sources"]
             st.markdown(answer)
+            if sources:
+                with st.expander("📖 View source from document", expanded=False):
+                    for i, chunk in enumerate(sources, 1):
+                        st.markdown(f"**Chunk {i}:**")
+                        st.markdown(
+                            f"<div style='background:#131629;border-left:3px solid #6C63FF;"
+                            f"padding:10px 14px;border-radius:6px;font-size:13px;"
+                            f"color:#a0aec0;margin-bottom:8px'>{chunk}</div>",
+                            unsafe_allow_html=True,
+                        )
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
 

@@ -1,17 +1,20 @@
-# 🤖 AI Document Assistant
+# 🧠 DocMind AI — AI-Powered Document Assistant
 
-An AI-powered document Q&A app built with **Streamlit**, **ChromaDB**, **Sentence Transformers**, and **Groq LLM**. Upload any PDF and have an intelligent conversation about its contents — with full chat history and graceful handling of out-of-scope questions.
+An AI-powered document Q&A app built with **Streamlit**, **ChromaDB**, and **Groq LLM**. Upload any PDF and have an intelligent conversation about its contents — with full chat history and graceful handling of out-of-scope questions.
+
+> Built as part of the **Techverse AI/ML Internship** technical task.
 
 ---
 
 ## ✨ Features
 
 - 📤 **PDF Upload** — Upload any text-based PDF document
-- 🔍 **Semantic Search** — ChromaDB + `all-MiniLM-L6-v2` embeddings find the most relevant chunks
-- 🤖 **LLM Answers** — Groq `llama3-8b-8192` generates grounded, accurate answers
+- 🔍 **Semantic Search** — ChromaDB vector similarity search finds the most relevant chunks
+- 🤖 **LLM Answers** — Groq `llama-3.1-8b-instant` generates grounded, accurate answers
 - 💬 **Chat History** — Full conversational context maintained within a session
+- 📖 **Source Citations** — Each answer shows the exact document chunk it was based on
 - ❌ **Honest "Not Found"** — Detects when a question is out of scope and says so clearly
-- 🎨 **Clean Dark UI** — Streamlit native chat interface with a polished theme
+- 🎨 **Premium Dark UI** — Custom-styled Streamlit interface with animations and glassmorphism
 
 ---
 
@@ -22,10 +25,10 @@ An AI-powered document Q&A app built with **Streamlit**, **ChromaDB**, **Sentenc
 | UI | Streamlit |
 | PDF Extraction | PyPDF2 |
 | Text Chunking | LangChain `RecursiveCharacterTextSplitter` |
-| Embeddings | `all-MiniLM-L6-v2` (SentenceTransformers, local) |
-| Vector DB | ChromaDB (in-memory / ephemeral) |
-| LLM | Groq API — `llama3-8b-8192` |
-| Secrets | Streamlit Secrets / `.env` |
+| Embeddings | ChromaDB `DefaultEmbeddingFunction` (ONNX, no GPU needed) |
+| Vector DB | ChromaDB (ephemeral / session-scoped) |
+| LLM | Groq API — `llama-3.1-8b-instant` |
+| Secrets | `.env` / Streamlit Secrets |
 
 ---
 
@@ -33,8 +36,8 @@ An AI-powered document Q&A app built with **Streamlit**, **ChromaDB**, **Sentenc
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/<your-username>/RagQA_PDF.git
-cd RagQA_PDF
+git clone https://github.com/Anuradha200312/AI-powered-Document-Assistant.git
+cd AI-powered-Document-Assistant
 ```
 
 ### 2. Create a virtual environment
@@ -53,18 +56,18 @@ pip install -r requirements.txt
 
 ### 4. Set your Groq API Key
 
-**Option A — Streamlit secrets (recommended):**
-
-Create the file `.streamlit/secrets.toml` (this file is git-ignored):
-```toml
-GROQ_API_KEY = "your-groq-api-key-here"
-```
-
-**Option B — Environment variable:**
+**Option A — `.env` file (recommended for local):**
 
 Create a `.env` file in the project root:
 ```
 GROQ_API_KEY=your-groq-api-key-here
+```
+
+**Option B — Streamlit secrets:**
+
+Create the file `.streamlit/secrets.toml` (this file is git-ignored):
+```toml
+GROQ_API_KEY = "your-groq-api-key-here"
 ```
 
 > Get a free API key at [console.groq.com](https://console.groq.com)
@@ -102,11 +105,11 @@ The app opens automatically at `http://localhost:8501`.
 ## 📂 Project Structure
 
 ```
-RagQA_PDF/
+AI-powered-Document-Assistant/
 ├── streamlit_app.py        # ← Main Streamlit app (run this)
-├── app.py                  # Flask version (kept for reference)
-├── pdf_to_json.py          # Standalone invoice parser utility
-├── requirements.txt        # Minimal dependencies (7 packages)
+├── app.py                  # Flask REST API version (bonus)
+├── pdf_to_json.py          # Standalone invoice → JSON extractor (bonus)
+├── requirements.txt        # Minimal cloud-ready dependencies (6 packages)
 ├── README.md
 ├── .gitignore
 └── .streamlit/
@@ -120,16 +123,16 @@ RagQA_PDF/
 
 ```
 User uploads PDF
-    └──► PyPDF2 extracts text
-         └──► Split into 1000-char overlapping chunks
-              └──► Embedded with all-MiniLM-L6-v2
-                   └──► Stored in ChromaDB (in-memory)
+    └──► PyPDF2 extracts raw text
+         └──► Split into 1000-char overlapping chunks (200 char overlap)
+              └──► Embedded with ChromaDB DefaultEmbeddingFunction (ONNX)
+                   └──► Stored in ChromaDB ephemeral collection
 
 User asks a question
-    └──► ChromaDB semantic search → top 3 similar chunks
-         ├── Distance score > 1.5? → "Not found in document"
-         └── Distance score OK? → Groq LLM generates answer
-              └──► Answer displayed with full chat history context
+    └──► ChromaDB semantic search → top 3 most similar chunks
+         ├── Distance score > 2.0? → "Not found in document"
+         └── Distance OK? → Groq LLM generates grounded answer
+              └──► Answer + source chunk displayed with full chat history context
 ```
 
 ---
@@ -138,11 +141,11 @@ User asks a question
 
 - PDF must contain **extractable text** (not scanned/image-only PDFs)
 - Document data is **session-scoped** — uploading a new PDF starts fresh
-- Max upload size: **50 MB** (configurable in `.streamlit/config.toml`)
+- Max upload size: **200 MB** (configurable in `.streamlit/config.toml`)
 - Answer length capped at **512 tokens** per response
 
 ---
 
 ## 📧 Contact
 
-Built as part of the Techverse AI/ML Internship technical task.
+**Anuradha** | Techverse AI/ML Internship Technical Task Submission
