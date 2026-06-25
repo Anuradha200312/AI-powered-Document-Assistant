@@ -377,15 +377,17 @@ def process_pdf(uploaded_file) -> tuple[bool, str | int]:
         return False, f"Error processing PDF: {str(e)}"
 
 
-# ─────────────────────────────────────────────────────────────────
-# Answer Generation
-# ─────────────────────────────────────────────────────────────────
+from datetime import datetime
+
+def get_current_time_str() -> str:
+    return datetime.now().strftime("%I:%M %p")
+
 SIMILARITY_THRESHOLD = 2.0
 MAX_HISTORY_TURNS = 6
 
 
-def get_answer(question: str) -> dict:
-    """Returns dict with 'answer' (str) and 'sources' (list of str chunks)."""
+def get_answer_stream(question: str) -> tuple:
+    """Returns tuple of (stream_generator, sources_list)."""
     results = st.session_state.collection.query(
         query_texts=[question],
         n_results=3,
@@ -396,15 +398,17 @@ def get_answer(question: str) -> dict:
     distances = results["distances"][0]
 
     if not docs or (distances and distances[0] > SIMILARITY_THRESHOLD):
-        return {
-            "answer": (
+        def static_generator():
+            yield (
                 "I couldn't find relevant information about that in the uploaded document. "
                 "Please try rephrasing, or ask about something covered in the document."
-            ),
-            "sources": [],
-        }
+            )
+        return static_generator(), []
 
     context = "\n\n---\n\n".join(docs)
+
+    # Clean history for Groq API (remove extra keys like timestamp)
+    api_history = [{"role": msg["role"], "content": msg["content"]} for msg in st.session_state.chat_history[-MAX_HISTORY_TURNS:]]
 
     messages = [
         {
@@ -416,7 +420,7 @@ def get_answer(question: str) -> dict:
                 "Do NOT fabricate facts. Be concise and accurate."
             ),
         },
-        *st.session_state.chat_history[-MAX_HISTORY_TURNS:],
+        *api_history,
         {
             "role": "user",
             "content": f"Document Context:\n{context}\n\nQuestion: {question}",
@@ -428,11 +432,15 @@ def get_answer(question: str) -> dict:
         messages=messages,
         temperature=0.3,
         max_tokens=512,
+        stream=True,
     )
-    return {
-        "answer": response.choices[0].message.content.strip(),
-        "sources": docs,
-    }
+
+    def stream_generator():
+        for chunk in response:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
+    return stream_generator(), docs
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -592,19 +600,55 @@ def render_chat():
     for message in st.session_state.chat_history:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            if "timestamp" in message:
+                align = "right" if message["role"] == "user" else "left"
+                st.markdown(
+                    f"<div style='font-size: 10px; color: #4a5170; text-align: {align}; margin-top: 4px;'>{message['timestamp']}</div>",
+                    unsafe_allow_html=True
+                )
 
-    # Chat input
-    if question := st.chat_input("Ask a question about your document…"):
+    # Suggestion chips
+    suggestion_clicked_text = None
+    if not st.session_state.chat_history:
+        st.markdown("<div style='margin-top: 20px; font-size: 13px; color: #6b7399; font-weight: 500;'>Quick Suggestions:</div>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns(3)
+        suggestions = [
+            "📝 Summarize the document",
+            "🔑 Key takeaways",
+            "📊 Analyze main findings",
+        ]
+        for col, sug in zip([col1, col2, col3], suggestions):
+            with col:
+                if st.button(sug, use_container_width=True):
+                    suggestion_clicked_text = sug.split(" ", 1)[1]
+
+    # Chat input or suggestion selection
+    question = st.chat_input("Ask a question about your document…")
+    if suggestion_clicked_text:
+        question = suggestion_clicked_text
+
+    if question:
+        # Display user message
         with st.chat_message("user"):
             st.markdown(question)
-        st.session_state.chat_history.append({"role": "user", "content": question})
+            t_user = get_current_time_str()
+            st.markdown(
+                f"<div style='font-size: 10px; color: #4a5170; text-align: right; margin-top: 4px;'>{t_user}</div>",
+                unsafe_allow_html=True
+            )
+        st.session_state.chat_history.append({"role": "user", "content": question, "timestamp": t_user})
 
+        # Generate assistant response
         with st.chat_message("assistant"):
-            with st.spinner("Searching document…"):
-                result = get_answer(question)
-            answer = result["answer"]
-            sources = result["sources"]
-            st.markdown(answer)
+            stream, sources = get_answer_stream(question)
+            # Write stream (typing animation)
+            answer = st.write_stream(stream)
+            t_assistant = get_current_time_str()
+            st.markdown(
+                f"<div style='font-size: 10px; color: #4a5170; text-align: left; margin-top: 4px;'>{t_assistant}</div>",
+                unsafe_allow_html=True
+            )
+            
             if sources:
                 with st.expander("📖 View source from document", expanded=False):
                     for i, chunk in enumerate(sources, 1):
@@ -615,7 +659,8 @@ def render_chat():
                             f"color:#a0aec0;margin-bottom:8px'>{chunk}</div>",
                             unsafe_allow_html=True,
                         )
-        st.session_state.chat_history.append({"role": "assistant", "content": answer})
+        st.session_state.chat_history.append({"role": "assistant", "content": answer, "timestamp": t_assistant})
+        st.rerun()
 
 
 # ─────────────────────────────────────────────────────────────────
