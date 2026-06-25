@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocMind AI — Sign In</title>
+  <meta name="description" content="Sign in to DocMind AI, your intelligent PDF document assistant powered by hybrid RAG." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>" />
+  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/auth.css" />
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <!-- Glassmorphism Panel -->
+      <div class="auth-panel">
+
+        <!-- Brand -->
+        <div class="auth-brand">
+          <div class="auth-logo">🧠</div>
+          <h1>Doc<span>Mind</span> AI</h1>
+          <p>Your intelligent document assistant</p>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+          <button class="auth-tab" id="tab-register" onclick="switchTab('register')">Create Account</button>
+        </div>
+
+        <!-- Error Message -->
+        <div class="auth-error" id="auth-error"></div>
+
+        <!-- Login Form -->
+        <form class="auth-form" id="login-form" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label" for="login-email">Email address</label>
+            <div class="input-wrapper">
+              <span class="input-icon">✉️</span>
+              <input class="input" type="email" id="login-email" placeholder="you@example.com" required autocomplete="email" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-password">Password</label>
+            <div class="input-wrapper">
+              <span class="input-icon">🔒</span>
+              <input class="input" type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password" />
+              <button type="button" class="password-toggle" onclick="togglePassword('login-password', this)" aria-label="Toggle password">👁️</button>
+            </div>
+          </div>
+          <button type="submit" class="btn auth-submit" id="login-btn">
+            <span id="login-btn-text">Sign In</span>
+          </button>
+        </form>
+
+        <!-- Register Form (hidden initially) -->
+        <form class="auth-form hidden" id="register-form" onsubmit="handleRegister(event)">
+          <div class="form-group">
+            <label class="form-label" for="reg-name">Full name</label>
+            <div class="input-wrapper">
+              <span class="input-icon">👤</span>
+              <input class="input" type="text" id="reg-name" placeholder="Your name" required autocomplete="name" minlength="2" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-email">Email address</label>
+            <div class="input-wrapper">
+              <span class="input-icon">✉️</span>
+              <input class="input" type="email" id="reg-email" placeholder="you@example.com" required autocomplete="email" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-password">Password</label>
+            <div class="input-wrapper">
+              <span class="input-icon">🔒</span>
+              <input class="input" type="password" id="reg-password" placeholder="At least 6 characters" required autocomplete="new-password" minlength="6" />
+              <button type="button" class="password-toggle" onclick="togglePassword('reg-password', this)" aria-label="Toggle password">👁️</button>
+            </div>
+          </div>
+          <button type="submit" class="btn auth-submit" id="register-btn">
+            <span id="register-btn-text">Create Account</span>
+          </button>
+        </form>
+
+        <!-- Feature Strip -->
+        <div class="auth-features">
+          <div class="auth-feature"><span>⚡</span>Fast RAG retrieval</div>
+          <div class="auth-feature"><span>🔒</span>Data isolated</div>
+          <div class="auth-feature"><span>🧠</span>Groq-powered</div>
+        </div>
+      </div>
+
+      <div class="auth-footer">
+        DocMind AI v2.0 · Hybrid RAG · PostgreSQL · Qdrant
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/auth.js"></script>
+  <script>
+    // Redirect if already logged in
+    if (localStorage.getItem('docmind_token')) {
+      window.location.href = '/app';
+    }
+  </script>
+</body>
+</html>
