@@ -360,6 +360,7 @@ def init_session_state():
         "chunks": [],
         "processed_filename": None,
         "chunks_count": 0,
+        "uploader_key": 0,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -472,6 +473,7 @@ def render_sidebar():
             type=["pdf"],
             label_visibility="collapsed",
             help="Upload a PDF to start asking questions about it.",
+            key=f"uploader_{st.session_state.uploader_key}",
         )
 
         # Process new PDF
@@ -510,6 +512,7 @@ def render_sidebar():
                 st.session_state.chunks = []
                 st.session_state.processed_filename = None
                 st.session_state.chunks_count = 0
+                st.session_state.uploader_key += 1
                 st.rerun()
 
             # Download chat history
