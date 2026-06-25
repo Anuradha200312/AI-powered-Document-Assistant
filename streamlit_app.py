@@ -1,12 +1,13 @@
 import os
-import uuid
+import math
+from datetime import datetime
 from dotenv import load_dotenv
-load_dotenv()  # Load .env before anything else
+load_dotenv()
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-import chromadb
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from groq import Groq
 
 # ─────────────────────────────────────────────────────────────────
@@ -311,10 +312,38 @@ def get_api_key() -> str:
 # ─────────────────────────────────────────────────────────────────
 # Cached Resources
 # ─────────────────────────────────────────────────────────────────
-@st.cache_resource(show_spinner="⚙️ Loading embedding model…")
-def get_embedding_function():
-    """Use ChromaDB's built-in ONNX embedding — no extra package needed."""
-    return DefaultEmbeddingFunction()
+# ─────────────────────────────────────────────────────────────────
+# Simple In-Memory Vector Store (no external DB needed)
+# ─────────────────────────────────────────────────────────────────
+def search_chunks(query: str, chunks: list, top_k: int = 3) -> list:
+    """Uses TF-IDF and Cosine Similarity to find the most relevant chunks."""
+    if not chunks:
+        return []
+    
+    # Create the vectorizer and fit it on both chunks + query so the vocabulary matches
+    vectorizer = TfidfVectorizer(stop_words="english")
+    try:
+        tfidf_matrix = vectorizer.fit_transform(chunks + [query])
+    except ValueError:
+        # Handles edge case where text contains no valid words
+        return []
+    
+    # The last vector is the query; the rest are chunks
+    chunk_vectors = tfidf_matrix[:-1]
+    query_vector = tfidf_matrix[-1]
+    
+    # Calculate similarities between the query and all chunks
+    similarities = cosine_similarity(query_vector, chunk_vectors).flatten()
+    
+    # Sort by descending similarity
+    scored = [(score, chunks[i]) for i, score in enumerate(similarities)]
+    scored.sort(reverse=True, key=lambda x: x[0])
+    
+    top = scored[:top_k]
+    # Return empty if best match is too weak (threshold for TF-IDF can be lower, e.g., 0.1)
+    if top[0][0] < 0.05:
+        return []
+    return [c for _, c in top]
 
 
 @st.cache_resource
@@ -328,10 +357,9 @@ def get_groq_client():
 def init_session_state():
     defaults = {
         "chat_history": [],
-        "collection": None,
+        "chunks": [],
         "processed_filename": None,
         "chunks_count": 0,
-        "chroma_client": chromadb.EphemeralClient(),
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -341,7 +369,7 @@ def init_session_state():
 # ─────────────────────────────────────────────────────────────────
 # PDF Processing
 # ─────────────────────────────────────────────────────────────────
-def process_pdf(uploaded_file) -> tuple[bool, str | int]:
+def process_pdf(uploaded_file) -> tuple:
     try:
         reader = PdfReader(uploaded_file)
         full_text = "".join(page.extract_text() or "" for page in reader.pages)
@@ -357,19 +385,7 @@ def process_pdf(uploaded_file) -> tuple[bool, str | int]:
         if not chunks:
             return False, "Could not split PDF into chunks."
 
-        # Reset collection
-        try:
-            st.session_state.chroma_client.delete_collection("pdf_collection")
-        except Exception:
-            pass
-
-        collection = st.session_state.chroma_client.create_collection(
-            name="pdf_collection",
-            embedding_function=get_embedding_function(),
-        )
-        collection.add(documents=chunks, ids=[str(uuid.uuid4()) for _ in chunks])
-
-        st.session_state.collection = collection
+        st.session_state.chunks = chunks
         st.session_state.chunks_count = len(chunks)
         return True, len(chunks)
 
@@ -388,16 +404,9 @@ MAX_HISTORY_TURNS = 6
 
 def get_answer_stream(question: str) -> tuple:
     """Returns tuple of (stream_generator, sources_list)."""
-    results = st.session_state.collection.query(
-        query_texts=[question],
-        n_results=3,
-        include=["documents", "distances"],
-    )
+    docs = search_chunks(question, st.session_state.chunks, top_k=3)
 
-    docs = results["documents"][0]
-    distances = results["distances"][0]
-
-    if not docs or (distances and distances[0] > SIMILARITY_THRESHOLD):
+    if not docs:
         def static_generator():
             yield (
                 "I couldn't find relevant information about that in the uploaded document. "
@@ -523,7 +532,7 @@ def render_sidebar():
         # Powered by
         st.markdown("""
         <div class="powered-by">
-            Groq · ChromaDB · Streamlit
+            Groq · In-Memory Search · Streamlit
         </div>
         """, unsafe_allow_html=True)
 

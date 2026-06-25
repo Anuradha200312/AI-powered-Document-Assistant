@@ -1,6 +1,6 @@
 # 🧠 DocMind AI — AI-Powered Document Assistant
 
-An AI-powered document Q&A app built with **Streamlit**, **ChromaDB**, and **Groq LLM**. Upload any PDF and have an intelligent conversation about its contents — with full chat history and graceful handling of out-of-scope questions.
+An AI-powered document Q&A app built with **Streamlit**, an **In-Memory Vector Store**, and **Groq LLM**. Upload any PDF and have an intelligent conversation about its contents — with full chat history and graceful handling of out-of-scope questions.
 
 > Built as part of the **Techverse AI/ML Internship** technical task.
 
@@ -9,7 +9,7 @@ An AI-powered document Q&A app built with **Streamlit**, **ChromaDB**, and **Gro
 ## ✨ Features
 
 - 📤 **PDF Upload** — Upload any text-based PDF document
-- 🔍 **Semantic Search** — ChromaDB vector similarity search finds the most relevant chunks
+- 🔍 **Semantic Search** — In-memory cosine similarity search finds the most relevant chunks (no heavy DB required)
 - 🤖 **LLM Answers** — Groq `llama-3.1-8b-instant` generates grounded, accurate answers
 - 💬 **Chat History** — Full conversational context maintained within a session
 - 📖 **Source Citations** — Each answer shows the exact document chunk it was based on
@@ -25,8 +25,8 @@ An AI-powered document Q&A app built with **Streamlit**, **ChromaDB**, and **Gro
 | UI | Streamlit |
 | PDF Extraction | PyPDF2 |
 | Text Chunking | LangChain `RecursiveCharacterTextSplitter` |
-| Embeddings | ChromaDB `DefaultEmbeddingFunction` (ONNX, no GPU needed) |
-| Vector DB | ChromaDB (ephemeral / session-scoped) |
+| Embeddings | TF-IDF Vectorizer (`scikit-learn`, fast & memory-only) |
+| Vector DB | In-memory cosine similarity |
 | LLM | Groq API — `llama-3.1-8b-instant` |
 | Secrets | `.env` / Streamlit Secrets |
 
@@ -107,8 +107,6 @@ The app opens automatically at `http://localhost:8501`.
 ```
 AI-powered-Document-Assistant/
 ├── streamlit_app.py        # ← Main Streamlit app (run this)
-├── app.py                  # Flask REST API version (bonus)
-├── pdf_to_json.py          # Standalone invoice → JSON extractor (bonus)
 ├── requirements.txt        # Minimal cloud-ready dependencies (6 packages)
 ├── README.md
 ├── .gitignore
@@ -125,13 +123,13 @@ AI-powered-Document-Assistant/
 User uploads PDF
     └──► PyPDF2 extracts raw text
          └──► Split into 1000-char overlapping chunks (200 char overlap)
-              └──► Embedded with ChromaDB DefaultEmbeddingFunction (ONNX)
-                   └──► Stored in ChromaDB ephemeral collection
+              └──► Embedded using TF-IDF Vectorizer
+                   └──► Stored in Streamlit session state
 
 User asks a question
-    └──► ChromaDB semantic search → top 3 most similar chunks
-         ├── Distance score > 2.0? → "Not found in document"
-         └── Distance OK? → Groq LLM generates grounded answer
+    └──► In-memory semantic search → top 3 most similar chunks via Cosine Similarity
+         ├── Cosine similarity low? → "Not found in document"
+         └── Similarity OK? → Groq LLM generates grounded answer
               └──► Answer + source chunk displayed with full chat history context
 ```
 
