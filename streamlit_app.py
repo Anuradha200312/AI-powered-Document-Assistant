@@ -10,6 +10,16 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from groq import Groq
 
+# Import Day 1 Auth and DB
+from core.database import Base, engine, SessionLocal
+from core.auth import register_user, authenticate_user
+
+# Create tables if they don't exist
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print("Warning: Database connection failed. Please ensure DATABASE_URL is set in .env")
+
 # ─────────────────────────────────────────────────────────────────
 # Page Configuration
 # ─────────────────────────────────────────────────────────────────
@@ -356,6 +366,7 @@ def get_groq_client():
 # ─────────────────────────────────────────────────────────────────
 def init_session_state():
     defaults = {
+        "user": None,
         "chat_history": [],
         "chunks": [],
         "processed_filename": None,
@@ -513,6 +524,7 @@ def render_sidebar():
                 st.session_state.processed_filename = None
                 st.session_state.chunks_count = 0
                 st.session_state.uploader_key += 1
+                st.session_state.user = None
                 st.rerun()
 
             # Download chat history
@@ -683,17 +695,76 @@ def render_chat():
 
 
 # ─────────────────────────────────────────────────────────────────
+# Authentication Screen
+# ─────────────────────────────────────────────────────────────────
+def render_auth():
+    st.markdown("""
+    <div class="hero">
+        <div class="hero-badge">🔐 Secure Access</div>
+        <h1>Log in or <span>Register</span></h1>
+        <p>You must authenticate to access the DocMind AI RAG pipeline.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        tab1, tab2 = st.tabs(["Login", "Register"])
+        
+        with tab1:
+            with st.form("login_form"):
+                st.subheader("Login")
+                username = st.text_input("Username")
+                password = st.text_input("Password", type="password")
+                submit = st.form_submit_button("Login")
+                
+                if submit:
+                    if not username or not password:
+                        st.error("Please fill in all fields.")
+                    else:
+                        db = SessionLocal()
+                        result = authenticate_user(db, username, password)
+                        db.close()
+                        if result["success"]:
+                            st.session_state.user = result["user"].id
+                            st.rerun()
+                        else:
+                            st.error(result["error"])
+                            
+        with tab2:
+            with st.form("register_form"):
+                st.subheader("Register")
+                new_username = st.text_input("Username")
+                new_email = st.text_input("Email")
+                new_password = st.text_input("Password", type="password")
+                submit_reg = st.form_submit_button("Register")
+                
+                if submit_reg:
+                    if not new_username or not new_email or not new_password:
+                        st.error("Please fill in all fields.")
+                    else:
+                        db = SessionLocal()
+                        result = register_user(db, new_username, new_email, new_password)
+                        db.close()
+                        if result["success"]:
+                            st.success("Registration successful! Please switch to the Login tab.")
+                        else:
+                            st.error(result["error"])
+
+
+# ─────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────
 def main():
     init_session_state()
-    render_sidebar()
 
-    if st.session_state.processed_filename is None:
-        render_welcome()
+    if not st.session_state.user:
+        render_auth()
     else:
-        render_chat()
-
+        render_sidebar()
+        if st.session_state.processed_filename is None:
+            render_welcome()
+        else:
+            render_chat()
 
 if __name__ == "__main__":
     main()
